@@ -1,6 +1,7 @@
 
 import my_env
 import my_type
+import my_scope
 
 class Stmt:
     pass
@@ -12,6 +13,9 @@ class Expression(Stmt):
     def exec(self):
         return self.expr.eval()
 
+    def resolve(self):
+        self.expr.resolve()
+
 class Print(Stmt):
     def __init__(self, value):
         self.value = value
@@ -19,6 +23,9 @@ class Print(Stmt):
     def exec(self):
         value = self.value.eval()
         print(f'{value}')
+
+    def resolve(self):
+        self.value.resolve()
 
 class Var(Stmt):
     def __init__(self, name, initializer):
@@ -30,6 +37,12 @@ class Var(Stmt):
             my_env.current_env.define(self.name, None)
         else:
             my_env.current_env.define(self.name, self.initializer.eval())
+
+    def resolve(self):
+        my_scope.declare(self.name)
+        if self.initializer is not None:
+            self.initializer.resolve()
+        my_scope.define(self.name)
 
 class Block(Stmt):
     def __init__(self, statements):
@@ -47,6 +60,12 @@ class Block(Stmt):
         finally:
             my_env.current_env = prev_env
 
+    def resolve(self):
+        my_scope.begin_scope()
+        for statement in self.statements:
+            statement.resolve()
+        my_scope.end_scope()
+
 class If(Stmt):
     def __init__(self, condition, then_branch, else_branch):
         self.condition = condition
@@ -59,6 +78,12 @@ class If(Stmt):
         elif self.else_branch is not None:
             self.else_branch.exec()
 
+    def resolve(self):
+        self.condition.resolve()
+        self.then_branch.resolve()
+        if self.else_branch is not None:
+            self.else_branch.resolve()
+
 class While(Stmt):
     def __init__(self, condition, body):
         self.condition = condition
@@ -68,6 +93,10 @@ class While(Stmt):
         while my_env.isTruthy(self.condition.eval()):
             self.body.exec()
 
+    def resolve(self):
+        self.condition.resolve()
+        self.body.resolve()
+
 class Function(Stmt):
     def __init__(self, name, parameters, body):
         self.name = name
@@ -76,6 +105,19 @@ class Function(Stmt):
 
     def exec(self):
         my_env.current_env.define(self.name, my_type.Func(self.name, self.parameters, self.body, my_env.current_env))
+
+    def resolve(self):
+        my_scope.declare(self.name)
+        my_scope.define(self.name)
+        prev_func = my_scope.current_function
+        my_scope.current_function = my_scope.FuncType.FUNCTION
+        my_scope.begin_scope()
+        for parameter in self.parameters:
+            my_scope.declare(parameter)
+            my_scope.define(parameter)
+        self.body.resolve()
+        my_scope.end_scope()
+        my_scope.current_function = prev_func
 
 class Return(Stmt):
     def __init__(self, keyword, value):
@@ -87,4 +129,10 @@ class Return(Stmt):
         if self.value is not None:
             value = self.value.eval()
         raise my_type.ReturnValue(value)
+
+    def resolve(self):
+        if my_scope.current_function == my_scope.FuncType.NONE:
+            my_scope.report_error(self.keyword, 'Can not return from top-level code.')
+        if self.value is not None:
+            self.value.resolve()
 

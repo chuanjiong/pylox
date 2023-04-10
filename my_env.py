@@ -35,6 +35,19 @@ class Env:
             error(name.line, f'Undefined variable {name.lexme}.')
             raise
 
+    def get_at(self, distance, name):
+        env = self
+        for i in range(distance):
+            env = env.enclosing
+        return env.get(name)
+
+    def assign_at(self, distance, name, value):
+        env = self
+        for i in range(distance):
+            env = env.enclosing
+        return env.assign(name, value)
+
+
 global_env = Env()
 
 # global_env.define(Token(TokenType.IDENTIFIER, 'clock', None, 0), my_type.ClockFunc('clock', 0))

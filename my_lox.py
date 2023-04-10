@@ -13,10 +13,14 @@ def run(src):
         value = None
         statements = Parser(Scanner(src).scan_tokens()).parse()
         for statement in statements:
+            value = statement.resolve()
+        for statement in statements:
             value = statement.exec()
         return value
     except KeyboardInterrupt:
         sys.exit()
+    except my_type.ReturnValue as e:
+        print(f'return value: {e.value}')
     except:
         print(f'runtime error')
 

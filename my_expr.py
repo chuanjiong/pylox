@@ -2,6 +2,7 @@
 import my_type
 from my_scanner import *
 import my_env
+import my_scope
 
 def report_error(operator, msg):
     report(operator.line, f'at {operator.lexme}', msg)
@@ -26,6 +27,9 @@ class Literal(Expr):
     def eval(self):
         return self.value
 
+    def resolve(self):
+        pass
+
 class Unary(Expr):
     def __init__(self, operator, right):
         self.operator = operator
@@ -41,6 +45,9 @@ class Unary(Expr):
             return -right
         else: # TokenType.BANG
             return not my_env.isTruthy(right)
+
+    def resolve(self):
+        self.right.resolve()
 
 class Binary(Expr):
     def __init__(self, left, operator, right):
@@ -85,6 +92,10 @@ class Binary(Expr):
         else: # TokenType.EQUAL_EQUAL
             return left == right
 
+    def resolve(self):
+        self.left.resolve()
+        self.right.resolve()
+
 class Grouping(Expr):
     def __init__(self, expr):
         self.expr = expr
@@ -95,6 +106,9 @@ class Grouping(Expr):
     def eval(self):
         return self.expr.eval()
 
+    def resolve(self):
+        self.expr.resolve()
+
 class Variable(Expr):
     def __init__(self, name):
         self.name = name
@@ -103,7 +117,16 @@ class Variable(Expr):
         return f'(id {self.name})'
 
     def eval(self):
-        return my_env.current_env.get(self.name)
+        # return my_env.current_env.get(self.name)
+        if self in my_scope.my_locals:
+            return my_env.current_env.get_at(my_scope.my_locals[self], self.name)
+        else:
+            return my_env.global_env.get(self.name)
+
+    def resolve(self):
+        if not my_scope.is_empty() and not my_scope.check(self.name):
+            report_error(self.name, 'Can not read local variable in its own initializer.')
+        my_scope.resolve_local(self, self.name)
 
 class Assign(Expr):
     def __init__(self, name, value):
@@ -115,8 +138,16 @@ class Assign(Expr):
 
     def eval(self):
         value = self.value.eval()
-        my_env.current_env.assign(self.name, value)
+        # my_env.current_env.assign(self.name, value)
+        if self in my_scope.my_locals:
+            return my_env.current_env.assign_at(my_scope.my_locals[self], self.name, value)
+        else:
+            return my_env.global_env.assign(self.name, value)
         return value
+
+    def resolve(self):
+        self.value.resolve()
+        my_scope.resolve_local(self, self.name)
 
 class Logical(Expr):
     def __init__(self, left, operator, right):
@@ -137,6 +168,10 @@ class Logical(Expr):
                 return left
         return self.right.eval()
 
+    def resolve(self):
+        self.left.resolve()
+        self.right.resolve()
+
 class Call(Expr):
     def __init__(self, callee, arguments, paren):
         self.callee = callee
@@ -156,6 +191,11 @@ class Call(Expr):
         if len(arguments) != callee.arity():
             report_error(self.paren, f'Expected {callee.arity()} arguments but got {len(arguments)}.')
         return callee.call(arguments)
+
+    def resolve(self):
+        self.callee.resolve()
+        for argument in self.arguments:
+            argument.resolve()
 
 
 if __name__ == '__main__':
