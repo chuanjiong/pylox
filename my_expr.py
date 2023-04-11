@@ -143,6 +143,26 @@ class This(Expr):
             report_error(self.name, 'Can not use this outside of a class.')
         my_scope.resolve_local(self, self.name)
 
+class Super(Expr):
+    def __init__(self, sp, method):
+        self.sp = sp
+        self.method = method
+
+    def eval(self):
+        sp = my_env.current_env.get_at(my_scope.my_locals[self]-1, self.sp)
+        this = my_env.current_env.get_at(my_scope.my_locals[self]-2, Token(TokenType.THIS, 'this', None, 1))
+        method = sp.get_method(self.method.lexme)
+        if method is None:
+            report_error(self.name, f'Undefined property {self.method.lexme}.')
+        return method.bind(this)
+
+    def resolve(self):
+        if my_scope.current_class == my_scope.ClsType.NONE:
+            report_error(self.name, f'Can not use super outside of a class.')
+        elif my_scope.current_class != my_scope.ClsType.SUBCLASS:
+            report_error(self.name, f'Can not use super in a class with no superclass.')
+        my_scope.resolve_local(self, self.sp)
+
 class Assign(Expr):
     def __init__(self, name, value):
         self.name = name

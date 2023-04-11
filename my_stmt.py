@@ -139,22 +139,42 @@ class Return(Stmt):
             self.value.resolve()
 
 class Class(Stmt):
-    def __init__(self, name, methods):
+    def __init__(self, name, sp, methods):
         self.name = name
+        self.sp = sp
         self.methods = methods
 
     def exec(self):
+        sp = None
+        if self.sp is not None:
+            sp = self.sp.eval()
+            if not isinstance(sp, my_type.Cls):
+                my_scope.report_error(self.sp.name, 'Superclass must be a class.')
         my_env.current_env.define(self.name, None)
+        env = my_env.current_env
+        if self.sp is not None:
+            env = my_env.Env(my_env.current_env)
+            env.define('super', sp)
         methods = {}
         for method in self.methods:
-            methods[method.name.lexme] = my_type.Func(method.name, method.parameters, method.body, my_env.current_env, method.name.lexme=='init')
-        my_env.current_env.assign(self.name, my_type.Cls(self.name, methods))
+            methods[method.name.lexme] = my_type.Func(method.name, method.parameters, method.body, env, method.name.lexme=='init')
+        if self.sp is not None:
+            my_env.current_env = env.enclosing
+        my_env.current_env.assign(self.name, my_type.Cls(self.name, sp, methods))
 
     def resolve(self):
         prev_cls = my_scope.current_class
         my_scope.current_class = my_scope.ClsType.CLASS
         my_scope.declare(self.name)
         my_scope.define(self.name)
+        if self.sp is not None:
+            my_scope.current_class = my_scope.ClsType.SUBCLASS
+            if self.name.lexme == self.sp.name.lexme:
+                my_scope.report_error(self.sp.name, 'A class can not inherit from itself.')
+            self.sp.resolve()
+        if self.sp is not None:
+            my_scope.begin_scope()
+            my_scope.scopes[-1]['super'] = True
         my_scope.begin_scope()
         # my_scope.scopes[-1]['this'] = True
         for method in self.methods:
@@ -171,5 +191,7 @@ class Class(Stmt):
             my_scope.end_scope()
             my_scope.current_function = prev_func
         my_scope.end_scope()
+        if self.sp is not None:
+            my_scope.end_scope()
         my_scope.current_class = prev_cls
 

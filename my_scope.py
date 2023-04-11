@@ -11,6 +11,7 @@ class FuncType(Enum):
 class ClsType(Enum):
     NONE = auto()
     CLASS = auto()
+    SUBCLASS = auto()
 
 scopes = []
 my_locals = {}

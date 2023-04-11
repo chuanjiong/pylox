@@ -82,8 +82,9 @@ class Instance:
         self.fields[name.lexme] = value
 
 class Cls:
-    def __init__(self, name, methods):
+    def __init__(self, name, sp, methods):
         self.name = name
+        self.sp = sp
         self.methods = methods
 
     def __repr__(self):
@@ -105,5 +106,7 @@ class Cls:
     def get_method(self, name):
         if name in self.methods:
             return self.methods[name]
+        if self.sp is not None:
+            return self.sp.get_method(name)
         return None
 

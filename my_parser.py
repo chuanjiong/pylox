@@ -147,6 +147,11 @@ class Parser:
             return my_expr.Grouping(expr)
         if self.match([TokenType.THIS]):
             return my_expr.This(self.previous())
+        if self.match([TokenType.SUPER]):
+            sp = self.previous()
+            self.consume(TokenType.DOT, 'Expect . after super.')
+            method = self.consume(TokenType.IDENTIFIER, 'Expect superclass method name.')
+            return my_expr.Super(sp, method)
         if self.match([TokenType.IDENTIFIER]):
             return my_expr.Variable(self.previous())
         self.report_error('Expect expression.')
@@ -263,12 +268,16 @@ class Parser:
 
     def class_declaration(self):
         name = self.consume(TokenType.IDENTIFIER, f'Expect class name.')
+        sp = None
+        if self.match([TokenType.LESS]):
+            self.consume(TokenType.IDENTIFIER, f'Expect superclass name.')
+            sp = my_expr.Variable(self.previous())
         self.consume(TokenType.LEFT_BRACE, f'Expect {{ before class body.')
         methods = []
         while not self.check(TokenType.RIGHT_BRACE) and not self.check(TokenType.EOF):
             methods.append(self.fun_declaration('method'))
         self.consume(TokenType.RIGHT_BRACE, f'Expect }} after class body.')
-        return my_stmt.Class(name, methods)
+        return my_stmt.Class(name, sp, methods)
 
     def declaration(self):
         if self.match([TokenType.VAR]):
