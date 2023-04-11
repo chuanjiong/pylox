@@ -104,7 +104,7 @@ class Function(Stmt):
         self.body = body
 
     def exec(self):
-        my_env.current_env.define(self.name, my_type.Func(self.name, self.parameters, self.body, my_env.current_env))
+        my_env.current_env.define(self.name, my_type.Func(self.name, self.parameters, self.body, my_env.current_env, False))
 
     def resolve(self):
         my_scope.declare(self.name)
@@ -134,5 +134,42 @@ class Return(Stmt):
         if my_scope.current_function == my_scope.FuncType.NONE:
             my_scope.report_error(self.keyword, 'Can not return from top-level code.')
         if self.value is not None:
+            if my_scope.current_function == my_scope.FuncType.INITIALIZER:
+                my_scope.report_error(self.keyword, 'Can not return a value from an initializer.')
             self.value.resolve()
+
+class Class(Stmt):
+    def __init__(self, name, methods):
+        self.name = name
+        self.methods = methods
+
+    def exec(self):
+        my_env.current_env.define(self.name, None)
+        methods = {}
+        for method in self.methods:
+            methods[method.name.lexme] = my_type.Func(method.name, method.parameters, method.body, my_env.current_env, method.name.lexme=='init')
+        my_env.current_env.assign(self.name, my_type.Cls(self.name, methods))
+
+    def resolve(self):
+        prev_cls = my_scope.current_class
+        my_scope.current_class = my_scope.ClsType.CLASS
+        my_scope.declare(self.name)
+        my_scope.define(self.name)
+        my_scope.begin_scope()
+        # my_scope.scopes[-1]['this'] = True
+        for method in self.methods:
+            prev_func = my_scope.current_function
+            my_scope.current_function = my_scope.FuncType.METHOD
+            if method.name.lexme == 'init':
+                my_scope.current_function = my_scope.FuncType.INITIALIZER
+            my_scope.begin_scope()
+            my_scope.scopes[-1]['this'] = True #...
+            for parameter in method.parameters:
+                my_scope.declare(parameter)
+                my_scope.define(parameter)
+            method.body.resolve()
+            my_scope.end_scope()
+            my_scope.current_function = prev_func
+        my_scope.end_scope()
+        my_scope.current_class = prev_cls
 

@@ -16,7 +16,10 @@ class Env:
         self.enclosing = enclosing
 
     def define(self, name, value):
-        self.values[name.lexme] = value
+        if isinstance(name, Token):
+            self.values[name.lexme] = value
+        else:
+            self.values[name] = value
 
     def get(self, name):
         if name.lexme in self.values:

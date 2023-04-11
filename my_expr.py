@@ -128,6 +128,21 @@ class Variable(Expr):
             report_error(self.name, 'Can not read local variable in its own initializer.')
         my_scope.resolve_local(self, self.name)
 
+class This(Expr):
+    def __init__(self, name):
+        self.name = name
+
+    def eval(self):
+        if self in my_scope.my_locals:
+            return my_env.current_env.get_at(my_scope.my_locals[self], self.name)
+        else:
+            return my_env.global_env.get(self.name)
+
+    def resolve(self):
+        if my_scope.current_class == my_scope.ClsType.NONE:
+            report_error(self.name, 'Can not use this outside of a class.')
+        my_scope.resolve_local(self, self.name)
+
 class Assign(Expr):
     def __init__(self, name, value):
         self.name = name
@@ -183,7 +198,7 @@ class Call(Expr):
 
     def eval(self):
         callee = self.callee.eval()
-        if not isinstance(callee, my_type.Func):
+        if not isinstance(callee, (my_type.Func, my_type.Cls)):
             report_error(self.paren, 'Can only call functions and classes.')
         arguments = []
         for argument in self.arguments:
@@ -196,6 +211,38 @@ class Call(Expr):
         self.callee.resolve()
         for argument in self.arguments:
             argument.resolve()
+
+class Get(Expr):
+    def __init__(self, expr, name):
+        self.expr = expr
+        self.name = name
+
+    def eval(self):
+        expr = self.expr.eval()
+        if isinstance(expr, my_type.Instance):
+            return expr.get(self.name)
+        report_error(self.name, 'Only instances have properties.')
+
+    def resolve(self):
+        self.expr.resolve()
+
+class Set(Expr):
+    def __init__(self, expr, name, value):
+        self.expr = expr
+        self.name = name
+        self.value = value
+
+    def eval(self):
+        expr = self.expr.eval()
+        if not isinstance(expr, my_type.Instance):
+            report_error(self.name, 'Only instances have fields.')
+        value = self.value.eval()
+        expr.set(self.name, value)
+        return value
+
+    def resolve(self):
+        self.value.resolve()
+        self.expr.resolve()
 
 
 if __name__ == '__main__':

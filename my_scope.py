@@ -3,13 +3,20 @@ from enum import Enum, auto
 from my_error import *
 
 class FuncType(Enum):
-    NONE=auto()
-    FUNCTION=auto()
+    NONE = auto()
+    FUNCTION = auto()
+    METHOD = auto()
+    INITIALIZER = auto()
+
+class ClsType(Enum):
+    NONE = auto()
+    CLASS = auto()
 
 scopes = []
 my_locals = {}
 
 current_function = FuncType.NONE
+current_class = ClsType.NONE
 
 def report_error(name, msg):
     report(name.line, f'at {name.lexme}', msg)
