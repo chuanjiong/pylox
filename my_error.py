@@ -8,3 +8,6 @@ def report(line, where, msg):
 def error(line, msg):
     report(line, '', msg)
 
+def scan_error(line, msg):
+    print(f'[Line {line}] scan error: {msg}')
+
