@@ -107,10 +107,10 @@ class Scanner:
         }
 
     def is_digit(self, c):
-        return c in "0123456789"
+        return c in '0123456789'
 
     def is_alpha_(self, c):
-        return c in "_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+        return c in '_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
     def is_end(self):
         return self.current >= len(self.source)
@@ -197,12 +197,12 @@ class Scanner:
         while not self.is_end():
             self.start = self.current
             self.scan_token()
-        self.tokens.append(Token(TokenType.EOF, "", None, self.line))
+        self.tokens.append(Token(TokenType.EOF, 'EOF', None, self.line))
         return self.tokens
 
 
 if __name__ == '__main__':
-    s = Scanner('var x = 4 * (3 + 4) + 8; if (x > 3) { y = x*4;}else{y=4;} return a;\n / "abc" 3.5 09.1 @ this super_ super abc //aabc')
+    s = Scanner('var x = 4 * (3 + 4) + 8; if (x > 3) { y = x*4;}else{y=4;} return a;\n / "abc" 3.5 09.1 @ this super_ super abc EOF //aabc')
     t = s.scan_tokens()
     for i in t:
         print(f'{i}')
