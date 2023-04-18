@@ -16,3 +16,14 @@ class BostonCream < Doughnut {
 BostonCream().cook();
 
 
+var a = clock();
+var b=2;
+print a;
+print b;
+
+var f = open("test.lox");print f;
+var r = read(f);
+print r;
+close(f);
+
+

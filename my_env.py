@@ -89,3 +89,13 @@ class Env(BaseEnv):
         else:
             super().runtime_error(name, f'Undefined variable {k}.')
 
+    def assign_global(self, name, value):
+        if isinstance(name, Token):
+            k = name.lexme
+        else:
+            k = name
+        if k in self.global_env.values:
+            self.global_env.values[k] = value
+        else:
+            super().runtime_error(name, f'Undefined variable {k}.')
+

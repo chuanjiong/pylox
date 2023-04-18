@@ -215,7 +215,7 @@ class Call(Expr):
         self.paren = paren
 
     def __repr__(self):
-        return f'({self.callee} {self.arguments})'
+        return f'(call {self.callee} {self.arguments})'
 
     def resolve(self, resolver):
         self.callee.resolve(resolver)

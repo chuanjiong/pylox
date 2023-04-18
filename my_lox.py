@@ -5,30 +5,29 @@ from my_scanner import Scanner
 from my_parser import Parser
 from my_resolver import Resolver
 from my_env import Env
+from my_native import native_table
 
 def run(src, resolver, env):
     value = None
     statements = Parser(Scanner(src, env).scan_tokens(), env).parse()
-    print('+'*16 + ' ast ' + '+'*16)
-    for statement in statements:
-        print(f'{statement}')
-    print('-'*16 + ' ast ' + '-'*16)
-    print('+'*16 + ' exec ' + '+'*16)
     for statement in statements:
         statement.resolve(resolver)
     for statement in statements:
         value = statement.exec(env)
-    print('-'*16 + ' exec ' + '-'*16)
     return value
 
 def run_file(path):
     print('='*16 + f' run: {path} ' + '='*16)
     with open(path, 'r') as f:
-        run(f.read(), Resolver(), Env())
+        resolver = Resolver()
+        env = Env()
+        env.values.update(native_table)
+        run(f.read(), resolver, env)
 
 def run_prompt():
     resolver = Resolver()
     env = Env()
+    env.values.update(native_table)
     while True:
         print('> ', end='')
         try:
