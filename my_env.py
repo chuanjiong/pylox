@@ -1,59 +1,91 @@
 
-from my_error import *
-from my_scanner import *
-import my_type
+from my_token import Token
 
-def isTruthy(value):
-    if value is None:
-        return False
-    if isinstance(value, bool):
-        return value
-    return True
+class BaseEnv:
+    def scan_error(self, line, msg):
+        print(f'[Line {line}] scan error: {msg}')
+        raise
 
-class Env:
+    def parse_error(self, token, msg):
+        print(f'[Line {token.line}] parse error at {token.lexme}, {msg}')
+        raise
+
+    def runtime_error(self, token, msg):
+        print(f'[Line {token.line}] runtime error at {token.lexme}, {msg}')
+        raise
+
+    def is_truthy(self, value):
+        if value is None:
+            return False
+        elif isinstance(value, bool):
+            return value
+        else:
+            return True
+
+    def check_operands(self, operator, operands, type_, msg):
+        for o in operands:
+            if not isinstance(o, type_):
+                self.runtime_error(operator, msg)
+
+class Env(BaseEnv):
     def __init__(self, enclosing=None):
         self.values = {}
         self.enclosing = enclosing
+        if enclosing is None:
+            self.global_env = self
+        else:
+            self.global_env = enclosing.global_env
 
     def define(self, name, value):
         if isinstance(name, Token):
-            self.values[name.lexme] = value
+            k = name.lexme
         else:
-            self.values[name] = value
+            k = name
+        self.values[k] = value
 
     def get(self, name):
-        if name.lexme in self.values:
-            return self.values[name.lexme]
-        if self.enclosing is not None:
+        if isinstance(name, Token):
+            k = name.lexme
+        else:
+            k = name
+        if k in self.values:
+            return self.values[k]
+        elif self.enclosing is not None:
             return self.enclosing.get(name)
-        error(name.line, f'Undefined variable {name.lexme}.')
-        raise
+        else:
+            super().runtime_error(name, f'Undefined variable {k}.')
 
     def assign(self, name, value):
-        if name.lexme in self.values:
-            self.values[name.lexme] = value
+        if isinstance(name, Token):
+            k = name.lexme
+        else:
+            k = name
+        if k in self.values:
+            self.values[k] = value
         elif self.enclosing is not None:
             self.enclosing.assign(name, value)
         else:
-            error(name.line, f'Undefined variable {name.lexme}.')
-            raise
+            super().runtime_error(name, f'Undefined variable {k}.')
 
     def get_at(self, distance, name):
         env = self
-        for i in range(distance):
+        for _ in range(distance):
             env = env.enclosing
         return env.get(name)
 
     def assign_at(self, distance, name, value):
         env = self
-        for i in range(distance):
+        for _ in range(distance):
             env = env.enclosing
         return env.assign(name, value)
 
-
-global_env = Env()
-
-# global_env.define(Token(TokenType.IDENTIFIER, 'clock', None, 0), my_type.ClockFunc('clock', 0))
-
-current_env = global_env
+    def get_global(self, name):
+        if isinstance(name, Token):
+            k = name.lexme
+        else:
+            k = name
+        if k in self.global_env.values:
+            return self.global_env.values[k]
+        else:
+            super().runtime_error(name, f'Undefined variable {k}.')
 

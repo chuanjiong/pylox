@@ -1,63 +1,10 @@
 
-from enum import Enum, auto
-from my_error import scan_error
-
-class TokenType(Enum):
-    LEFT_PAREN = auto()     # (
-    RIGHT_PAREN = auto()    # )
-    LEFT_BRACE = auto()     # {
-    RIGHT_BRACE = auto()    # }
-    DOT = auto()            # .
-    COMMA = auto()          # ,
-    SEMICOLON = auto()      # ;
-    PLUS = auto()           # +
-    MINUS = auto()          # -
-    STAR = auto()           # *
-    SLASH = auto()          # /
-    BANG = auto()           # !
-    BANG_EQUAL = auto()     # !=
-    EQUAL = auto()          # =
-    EQUAL_EQUAL = auto()    # ==
-    GREATER = auto()        # >
-    GREATER_EQUAL = auto()  # >=
-    LESS = auto()           # <
-    LESS_EQUAL = auto()     # <=
-    NUMBER = auto()         # 数字
-    STRING = auto()         # 字符串
-    IDENTIFIER = auto()     # 标识符
-    # 关键字
-    AND = auto()
-    CLASS = auto()
-    ELSE = auto()
-    FALSE = auto()
-    FOR = auto()
-    FUN = auto()
-    IF = auto()
-    NIL = auto()
-    OR = auto()
-    PRINT = auto()
-    RETURN = auto()
-    SUPER = auto()
-    THIS = auto()
-    TRUE = auto()
-    VAR = auto()
-    WHILE = auto()
-    # 结束标志
-    EOF = auto()
-
-class Token:
-    def __init__(self, type_, lexme, literal, line):
-        self.type_ = type_
-        self.lexme = lexme
-        self.literal = literal # 字面值：数字float、字符串str
-        self.line = line
-
-    def __repr__(self):
-        return f'{self.type_} {self.lexme} {self.literal}'
+from my_token import TokenType, Token
 
 class Scanner:
-    def __init__(self, source):
+    def __init__(self, source, env):
         self.source = source
+        self.env = env
         self.tokens = []
 
         self.start = 0
@@ -168,7 +115,7 @@ class Scanner:
                 self.line += 1
             self.advance()
         if self.is_end():
-            scan_error(self.line, f'Unterminated string.')
+            self.env.scan_error(self.line, f'Unterminated string.')
             return
         self.advance()
         self.add_token(TokenType.STRING, self.source[self.start+1:self.current-1])
@@ -191,19 +138,18 @@ class Scanner:
         elif self.is_alpha_(c):
             self.advance_identifier()
         else:
-            scan_error(self.line, f'Unexpected character {c}.')
+            self.env.scan_error(self.line, f'Unexpected character {c}.')
 
     def scan_tokens(self):
+        ok = True
         while not self.is_end():
             self.start = self.current
-            self.scan_token()
+            try:
+                self.scan_token()
+            except:
+                ok = False
         self.tokens.append(Token(TokenType.EOF, 'EOF', None, self.line))
+        if not ok:
+            return [Token(TokenType.EOF, 'EOF', None, 0)]
         return self.tokens
-
-
-if __name__ == '__main__':
-    s = Scanner('var x = 4 * (3 + 4) + 8; if (x > 3) { y = x*4;}else{y=4;} return a;\n / "abc" 3.5 09.1 @ this super_ super abc EOF //aabc')
-    t = s.scan_tokens()
-    for i in t:
-        print(f'{i}')
 

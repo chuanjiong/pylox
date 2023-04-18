@@ -1,18 +1,7 @@
 
-import my_type
-from my_scanner import *
-import my_env
-import my_scope
-
-def report_error(operator, msg):
-    report(operator.line, f'at {operator.lexme}', msg)
-    raise
-
-def check_operands(operator, operands, type_, msg):
-    for i in operands:
-        if not isinstance(i, type_):
-            report_error(operator, msg)
-    return True
+from my_token import TokenType
+from my_type import Func, Cls, Instance
+from my_resolver import ClsType
 
 class Expr:
     pass
@@ -24,11 +13,11 @@ class Literal(Expr):
     def __repr__(self):
         return f'{self.value}'
 
-    def eval(self):
-        return self.value
-
-    def resolve(self):
+    def resolve(self, resolver):
         pass
+
+    def eval(self, env):
+        return self.value
 
 class Unary(Expr):
     def __init__(self, operator, right):
@@ -38,16 +27,16 @@ class Unary(Expr):
     def __repr__(self):
         return f'({self.operator} {self.right})'
 
-    def eval(self):
-        right = self.right.eval()
+    def resolve(self, resolver):
+        self.right.resolve(resolver)
+
+    def eval(self, env):
+        right = self.right.eval(env)
         if self.operator.type_ == TokenType.MINUS:
-            check_operands(self.operator, [right], float, 'Operand must be a number.')
+            env.check_operands(self.operator, [right], float, 'Operand must be a number.')
             return -right
         else: # TokenType.BANG
-            return not my_env.isTruthy(right)
-
-    def resolve(self):
-        self.right.resolve()
+            return not env.is_truthy(right)
 
 class Binary(Expr):
     def __init__(self, left, operator, right):
@@ -58,131 +47,43 @@ class Binary(Expr):
     def __repr__(self):
         return f'({self.operator} {self.left} {self.right})'
 
-    def eval(self):
-        left = self.left.eval()
-        right = self.right.eval()
+    def resolve(self, resolver):
+        self.left.resolve(resolver)
+        self.right.resolve(resolver)
+
+    def eval(self, env):
+        left = self.left.eval(env)
+        right = self.right.eval(env)
         if self.operator.type_ == TokenType.PLUS:
             if isinstance(left, float) and isinstance(right, float) or isinstance(left, str) and isinstance(right, str):
                 return left + right
             else:
-                report_error(self.operator, 'Operands must be two numbers or two strings.')
+                env.runtime_error(self.operator, 'Operands must be two numbers or two strings.')
         elif self.operator.type_ == TokenType.MINUS:
-            check_operands(self.operator, [left, right], float, 'Operand must be a number.')
+            env.check_operands(self.operator, [left, right], float, 'Operand must be a number.')
             return left - right
         elif self.operator.type_ == TokenType.STAR:
-            check_operands(self.operator, [left, right], float, 'Operand must be a number.')
+            env.check_operands(self.operator, [left, right], float, 'Operand must be a number.')
             return left * right
         elif self.operator.type_ == TokenType.SLASH:
-            check_operands(self.operator, [left, right], float, 'Operand must be a number.')
+            env.check_operands(self.operator, [left, right], float, 'Operand must be a number.')
             return left / right
         elif self.operator.type_ == TokenType.GREATER:
-            check_operands(self.operator, [left, right], float, 'Operand must be a number.')
+            env.check_operands(self.operator, [left, right], float, 'Operand must be a number.')
             return left > right
         elif self.operator.type_ == TokenType.GREATER_EQUAL:
-            check_operands(self.operator, [left, right], float, 'Operand must be a number.')
+            env.check_operands(self.operator, [left, right], float, 'Operand must be a number.')
             return left >= right
         elif self.operator.type_ == TokenType.LESS:
-            check_operands(self.operator, [left, right], float, 'Operand must be a number.')
+            env.check_operands(self.operator, [left, right], float, 'Operand must be a number.')
             return left < right
         elif self.operator.type_ == TokenType.LESS_EQUAL:
-            check_operands(self.operator, [left, right], float, 'Operand must be a number.')
+            env.check_operands(self.operator, [left, right], float, 'Operand must be a number.')
             return left <= right
         elif self.operator.type_ == TokenType.BANG_EQUAL:
             return left != right
         else: # TokenType.EQUAL_EQUAL
             return left == right
-
-    def resolve(self):
-        self.left.resolve()
-        self.right.resolve()
-
-class Grouping(Expr):
-    def __init__(self, expr):
-        self.expr = expr
-
-    def __repr__(self):
-        return f'(group {self.expr})'
-
-    def eval(self):
-        return self.expr.eval()
-
-    def resolve(self):
-        self.expr.resolve()
-
-class Variable(Expr):
-    def __init__(self, name):
-        self.name = name
-
-    def __repr__(self):
-        return f'(id {self.name})'
-
-    def eval(self):
-        # return my_env.current_env.get(self.name)
-        if self in my_scope.my_locals:
-            return my_env.current_env.get_at(my_scope.my_locals[self], self.name)
-        else:
-            return my_env.global_env.get(self.name)
-
-    def resolve(self):
-        if not my_scope.is_empty() and not my_scope.check(self.name):
-            report_error(self.name, 'Can not read local variable in its own initializer.')
-        my_scope.resolve_local(self, self.name)
-
-class This(Expr):
-    def __init__(self, name):
-        self.name = name
-
-    def eval(self):
-        if self in my_scope.my_locals:
-            return my_env.current_env.get_at(my_scope.my_locals[self], self.name)
-        else:
-            return my_env.global_env.get(self.name)
-
-    def resolve(self):
-        if my_scope.current_class == my_scope.ClsType.NONE:
-            report_error(self.name, 'Can not use this outside of a class.')
-        my_scope.resolve_local(self, self.name)
-
-class Super(Expr):
-    def __init__(self, sp, method):
-        self.sp = sp
-        self.method = method
-
-    def eval(self):
-        sp = my_env.current_env.get_at(my_scope.my_locals[self]-1, self.sp)
-        this = my_env.current_env.get_at(my_scope.my_locals[self]-2, Token(TokenType.THIS, 'this', None, 1))
-        method = sp.get_method(self.method.lexme)
-        if method is None:
-            report_error(self.name, f'Undefined property {self.method.lexme}.')
-        return method.bind(this)
-
-    def resolve(self):
-        if my_scope.current_class == my_scope.ClsType.NONE:
-            report_error(self.name, f'Can not use super outside of a class.')
-        elif my_scope.current_class != my_scope.ClsType.SUBCLASS:
-            report_error(self.name, f'Can not use super in a class with no superclass.')
-        my_scope.resolve_local(self, self.sp)
-
-class Assign(Expr):
-    def __init__(self, name, value):
-        self.name = name
-        self.value = value
-
-    def __repr__(self):
-        return f'(= {self.name} {self.value})'
-
-    def eval(self):
-        value = self.value.eval()
-        # my_env.current_env.assign(self.name, value)
-        if self in my_scope.my_locals:
-            return my_env.current_env.assign_at(my_scope.my_locals[self], self.name, value)
-        else:
-            return my_env.global_env.assign(self.name, value)
-        return value
-
-    def resolve(self):
-        self.value.resolve()
-        my_scope.resolve_local(self, self.name)
 
 class Logical(Expr):
     def __init__(self, left, operator, right):
@@ -193,19 +94,119 @@ class Logical(Expr):
     def __repr__(self):
         return f'({self.operator} {self.left} {self.right})'
 
-    def eval(self):
-        left = self.left.eval()
+    def resolve(self, resolver):
+        self.left.resolve(resolver)
+        self.right.resolve(resolver)
+
+    def eval(self, env):
+        left = self.left.eval(env)
         if self.operator.type_ == TokenType.OR:
-            if my_env.isTruthy(left):
+            if env.is_truthy(left):
                 return left
         else: # TokenType.AND
-            if not my_env.isTruthy(left):
+            if not env.is_truthy(left):
                 return left
-        return self.right.eval()
+        return self.right.eval(env)
 
-    def resolve(self):
-        self.left.resolve()
-        self.right.resolve()
+class Grouping(Expr):
+    def __init__(self, expr):
+        self.expr = expr
+
+    def __repr__(self):
+        return f'(group {self.expr})'
+
+    def resolve(self, resolver):
+        self.expr.resolve(resolver)
+
+    def eval(self, env):
+        return self.expr.eval(env)
+
+class Variable(Expr):
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return f'(id {self.name})'
+
+    def resolve(self, resolver):
+        self.resolver = resolver
+        if resolver.check(self.name, False):
+            resolver.resolve_error(self.name, f'Can not read local variable in its own initializer.')
+        else:
+            resolver.resolve_local(self, self.name)
+
+    def eval(self, env):
+        if self in self.resolver.locals:
+            return env.get_at(self.resolver.locals[self], self.name)
+        else:
+            return env.get_global(self.name)
+
+class Assign(Expr):
+    def __init__(self, name, expr):
+        self.name = name
+        self.expr = expr
+
+    def __repr__(self):
+        return f'(= {self.name} {self.expr})'
+
+    def resolve(self, resolver):
+        self.resolver = resolver
+        self.expr.resolve(resolver)
+        resolver.resolve_local(self, self.name)
+
+    def eval(self, env):
+        value = self.expr.eval(env)
+        if self in self.resolver.locals:
+            env.assign_at(self.resolver.locals[self], self.name, value)
+        else:
+            env.assign_global(self.name, value)
+        return value
+
+class This(Expr):
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return f'this'
+
+    def resolve(self, resolver):
+        self.resolver = resolver
+        if resolver.current_class == ClsType.NONE:
+            resolver.resolve_error(self.name, f'Can not use this outside of a class.')
+        else:
+            resolver.resolve_local(self, self.name)
+
+    def eval(self, env):
+        if self in self.resolver.locals:
+            return env.get_at(self.resolver.locals[self], self.name)
+        else:
+            return env.get_global(self.name)
+
+class Super(Expr):
+    def __init__(self, sp, method):
+        self.sp = sp
+        self.method = method
+
+    def __repr__(self):
+        return f'(super {self.method})'
+
+    def resolve(self, resolver):
+        self.resolver = resolver
+        if resolver.current_class == ClsType.NONE:
+            resolver.resolve_error(self.sp, f'Can not use super outside of a class.')
+        elif resolver.current_class != ClsType.SUBCLASS:
+            resolver.resolve_error(self.sp, f'Can not use super in a class with no superclass.')
+        else:
+            resolver.resolve_local(self, self.sp)
+
+    def eval(self, env):
+        distance = self.resolver.locals[self]
+        sp = env.get_at(distance, self.sp)
+        this = env.get_at(distance-1, 'this')
+        method = sp.get_method(self.method)
+        if method is None:
+            env.runtime_error(self.method, f'Undefined property {self.method}.')
+        return method.bind(this)
 
 class Call(Expr):
     def __init__(self, callee, arguments, paren):
@@ -216,35 +217,38 @@ class Call(Expr):
     def __repr__(self):
         return f'({self.callee} {self.arguments})'
 
-    def eval(self):
-        callee = self.callee.eval()
-        if not isinstance(callee, (my_type.Func, my_type.Cls)):
-            report_error(self.paren, 'Can only call functions and classes.')
+    def resolve(self, resolver):
+        self.callee.resolve(resolver)
+        for argument in self.arguments:
+            argument.resolve(resolver)
+
+    def eval(self, env):
+        callee = self.callee.eval(env)
+        if not isinstance(callee, (Func, Cls)):
+            env.runtime_error(self.paren, f'Can only call functions and classes.')
         arguments = []
         for argument in self.arguments:
-            arguments.append(argument.eval())
+            arguments.append(argument.eval(env))
         if len(arguments) != callee.arity():
-            report_error(self.paren, f'Expected {callee.arity()} arguments but got {len(arguments)}.')
+            env.runtime_error(self.paren, f'Expected {callee.arity()} arguments but got {len(arguments)}.')
         return callee.call(arguments)
-
-    def resolve(self):
-        self.callee.resolve()
-        for argument in self.arguments:
-            argument.resolve()
 
 class Get(Expr):
     def __init__(self, expr, name):
         self.expr = expr
         self.name = name
 
-    def eval(self):
-        expr = self.expr.eval()
-        if isinstance(expr, my_type.Instance):
-            return expr.get(self.name)
-        report_error(self.name, 'Only instances have properties.')
+    def __repr__(self):
+        return f'(get {self.expr} {self.name})'
 
-    def resolve(self):
-        self.expr.resolve()
+    def resolve(self, resolver):
+        self.expr.resolve(resolver)
+
+    def eval(self, env):
+        expr = self.expr.eval(env)
+        if not isinstance(expr, Instance):
+            env.runtime_error(self.name, 'Only instances have properties.')
+        return expr.get(self.name, env)
 
 class Set(Expr):
     def __init__(self, expr, name, value):
@@ -252,26 +256,18 @@ class Set(Expr):
         self.name = name
         self.value = value
 
-    def eval(self):
-        expr = self.expr.eval()
-        if not isinstance(expr, my_type.Instance):
-            report_error(self.name, 'Only instances have fields.')
-        value = self.value.eval()
+    def __repr__(self):
+        return f'(set {self.expr} {self.name} {self.value})'
+
+    def resolve(self, resolver):
+        self.expr.resolve(resolver)
+        self.value.resolve(resolver)
+
+    def eval(self, env):
+        expr = self.expr.eval(env)
+        if not isinstance(expr, Instance):
+            env.runtime_error(self.name, 'Only instances have fields.')
+        value = self.value.eval(env)
         expr.set(self.name, value)
         return value
-
-    def resolve(self):
-        self.value.resolve()
-        self.expr.resolve()
-
-
-if __name__ == '__main__':
-    e = Binary(Unary(Token(TokenType.MINUS, '-', None, 1), Literal(float(123))), Token(TokenType.STAR, '*', None, 1), Grouping(Literal(float(45.67))))
-    print(e)
-    print(e.eval())
-    e = Variable(Token(TokenType.IDENTIFIER, 'x', None, 1))
-    print(e)
-    e = Logical(Literal(False), Token(TokenType.AND, 'and', None, 1), Literal(float(0)))
-    print(e)
-    print(e.eval())
 

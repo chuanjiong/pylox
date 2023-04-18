@@ -1,37 +1,39 @@
 
 import sys
-from my_scanner import *
-from my_parser import *
-from my_error import *
-import my_type
-import my_env
 
-my_env.global_env.define(Token(TokenType.IDENTIFIER, 'clock', None, 0), my_type.ClockFunc('clock', 0))
+from my_scanner import Scanner
+from my_parser import Parser
+from my_resolver import Resolver
+from my_env import Env
 
-def run(src):
+#my_env.global_env.define(Token(TokenType.IDENTIFIER, 'clock', None, 0), my_type.ClockFunc('clock', 0))
+
+def run(src, resolver, env):
     try:
         value = None
-        statements = Parser(Scanner(src).scan_tokens()).parse()
+        statements = Parser(Scanner(src, env).scan_tokens(), env).parse()
         for statement in statements:
-            value = statement.resolve()
+            print(f'{statement}')
         for statement in statements:
-            value = statement.exec()
+            value = statement.resolve(resolver)
+        for statement in statements:
+            value = statement.exec(env)
         return value
     except KeyboardInterrupt:
         sys.exit()
-    except my_type.ReturnValue as e:
-        print(f'return value: {e.value}')
-    except:
-        print(f'runtime error')
 
 def runFile(path):
+    resolver = Resolver()
+    env = Env()
     with open(path, 'r') as f:
-        run(f.read())
+        run(f.read(), resolver, env)
 
 def runPrompt():
+    resolver = Resolver()
+    env = Env()
     while True:
         print('> ', end = '')
-        value = run(input())
+        value = run(input(), resolver, env)
         if value is not None:
             print(f'{value}')
 

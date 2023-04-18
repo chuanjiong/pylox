@@ -1,12 +1,12 @@
 
-from my_error import parse_error
-from my_scanner import TokenType
+from my_token import TokenType
 import my_expr
 import my_stmt
 
 class Parser:
-    def __init__(self, tokens):
+    def __init__(self, tokens, env):
         self.tokens = tokens
+        self.env = env
         self.current = 0
 
     def peek(self):
@@ -19,14 +19,15 @@ class Parser:
         if self.peek().type_ in types:
             self.current += 1
             return True
-        return False
+        else:
+            return False
 
     def consume(self, type_, msg):
         if self.check(type_):
             self.current += 1
             return self.tokens[self.current-1]
         else:
-            parse_error(self.tokens[self.current], msg)
+            self.env.parse_error(self.tokens[self.current], msg)
 
     def previous(self):
         return self.tokens[self.current-1]
@@ -71,7 +72,7 @@ class Parser:
                 return my_expr.Assign(expr.name, value)
             elif isinstance(expr, my_expr.Get):
                 return my_expr.Set(expr.expr, expr.name, value)
-            parse_error(self.tokens[self.current], f'Invalid assignment target.')
+            self.env.parse_error(self.tokens[self.current], f'Invalid assignment target.')
         return expr
 
     def logic_or(self):
@@ -147,7 +148,7 @@ class Parser:
             arguments.append(self.expression())
             while self.match(TokenType.COMMA):
                 if len(arguments) >= 255:
-                    parse_error(self.tokens[self.current], f'Can not have more than 255 arguments.')
+                    self.env.parse_error(self.tokens[self.current], f'Can not have more than 255 arguments.')
                 arguments.append(self.expression())
         paren = self.consume(TokenType.RIGHT_PAREN, f'Expect ) after arguments.')
         return my_expr.Call(expr, arguments, paren)
@@ -174,7 +175,7 @@ class Parser:
             expr = self.expression()
             self.consume(TokenType.RIGHT_PAREN, f'Expect ) after expression.')
             return my_expr.Grouping(expr)
-        parse_error(self.tokens[self.current], f'Expect expression.')
+        self.env.parse_error(self.tokens[self.current], f'Expect expression.')
 
     '''
     statement               ->      print_statement
@@ -215,7 +216,8 @@ class Parser:
             return self.for_statement()
         elif self.match(TokenType.RETURN):
             return self.return_statement()
-        return self.expression_statement()
+        else:
+            return self.expression_statement()
 
     def expression_statement(self):
         expr = self.expression()
@@ -309,7 +311,8 @@ class Parser:
             return self.fun_declaration('function')
         elif self.match(TokenType.CLASS):
             return self.class_declaration()
-        return self.statement()
+        else:
+            return self.statement()
 
     def var_declaration(self):
         name = self.consume(TokenType.IDENTIFIER, f'Expect variable name.')
@@ -327,7 +330,7 @@ class Parser:
             parameters.append(self.consume(TokenType.IDENTIFIER, f'Expect parameter name.'))
             while self.match(TokenType.COMMA):
                 if len(parameters) >= 255:
-                    parse_error(self.tokens[self.current], f'Can not have more than 255 parameters.')
+                    self.env.parse_error(self.tokens[self.current], f'Can not have more than 255 parameters.')
                 parameters.append(self.consume(TokenType.IDENTIFIER, f'Expect parameter name.'))
         self.consume(TokenType.RIGHT_PAREN, f'Expect ) after parameters.')
         self.consume(TokenType.LEFT_BRACE, f'Expect {{ before {type_} body.')
@@ -348,14 +351,23 @@ class Parser:
         return my_stmt.Class(name, sp, methods)
 
     def parse(self):
+        ok = True
         statements = []
         while not self.check(TokenType.EOF):
-            statements.append(self.declaration())
+            try:
+                statements.append(self.declaration())
+            except:
+                ok = False
+                self.synchronize()
+        if not ok:
+            return []
         return statements
 
-
-if __name__ == '__main__':
-    from my_scanner import Scanner
-    s = Parser(Scanner('3*(4+5)-4 ; print 1;').scan_tokens()).parse()
-    print(s)
+    def synchronize(self):
+        while not self.check(TokenType.EOF):
+            if self.peek().type_ in [TokenType.CLASS, TokenType.FUN, TokenType.VAR, TokenType.FOR, TokenType.IF, TokenType.WHILE, TokenType.PRINT, TokenType.RETURN]:
+                return
+            self.current += 1
+            if self.previous().type_ in [TokenType.SEMICOLON, TokenType.RIGHT_BRACE]:
+                return
 
