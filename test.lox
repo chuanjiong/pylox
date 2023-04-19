@@ -26,4 +26,20 @@ var r = read(f);
 print r;
 close(f);
 
+{
+fun f() {
+    var a = 3;
+    fun w() {
+        print(a);
+        a=a+1;
+    }
+    return w;
+}
+f()(); //3
+f()(); //3
 
+var c = f();
+
+c(); //3
+c(); //4
+}
