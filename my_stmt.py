@@ -210,7 +210,5 @@ class Class(Stmt):
         methods = {}
         for method in self.methods:
             methods[method.name.lexme] = Func(method.name, method.parameters, method.body, sp_env, method.name.lexme=='init')
-        if self.sp is not None:
-            env = sp_env.enclosing
         env.assign(self.name, Cls(self.name, sp, methods))
 
